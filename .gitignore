@@ -1,0 +1,4 @@
+.idea
+go.sum
+code_test.go
+*.log
