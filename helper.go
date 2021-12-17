@@ -16,7 +16,7 @@ func ToCameWithSep(s, sep string) string {
 	return bs.String()
 }
 
-// 下划线转驼峰
+// ToCame 下划线转驼峰
 func ToCame(s string) string {
 	return ToCameWithSep(s, "_")
 }
@@ -37,12 +37,12 @@ func ToSnakeFWithSep(s, sep string) string {
 	return bs.String()
 }
 
-// 驼峰转下划线
+// ToSnake 驼峰转下划线
 func ToSnake(s string) string {
 	return ToSnakeFWithSep(s, "_")
 }
 
-// 首字母小写
+// ToLcFirst 首字母小写
 func ToLcFirst(s string) string {
 	if len(s) > 0 && s[0] >= byte('A') && s[0] <= byte('Z') {
 		s = string(s[0]+32) + s[1:]
@@ -50,7 +50,7 @@ func ToLcFirst(s string) string {
 	return s
 }
 
-// 首字母大写
+// ToUcFirst 首字母大写
 func ToUcFirst(s string) string {
 	if len(s) > 0 && s[0] >= byte('a') && s[0] <= byte('z') {
 		s = string(s[0]-32) + s[1:]

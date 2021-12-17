@@ -42,7 +42,10 @@ type xCopy struct {
 	cp  *sync.Pool
 }
 
-const OriginCopyField = "origin"
+const (
+	OriginCopyField     = "origin"
+	FuncCopyFieldPrefix = "func"
+)
 
 // NewCopy 初始化默认
 func NewCopy(opts ...Option) *xCopy {
@@ -110,6 +113,7 @@ func (c *xCopy) copySt(dv, sv reflect.Value) (err error) {
 	var (
 		fst    reflect.StructField
 		sf     string
+		ofn    bool
 		origin bool
 		se     error
 	)
@@ -119,7 +123,7 @@ func (c *xCopy) copySt(dv, sv reflect.Value) (err error) {
 	num := dt.NumField()
 	for i := 0; i < num; i++ {
 		fst = dt.Field(i)
-		sf, origin = c.parseTag(fst)
+		sf, ofn, origin = c.parseTag(fst)
 
 		data.df = fst.Name
 		data.osf = origin
@@ -176,6 +180,7 @@ func (c *xCopy) copySt(dv, sv reflect.Value) (err error) {
 				}
 			}
 		} else {
+			data.ofn = ofn
 			data.sf = strings.TrimSpace(sf)
 			se = c.setSf(data)
 		}
@@ -230,7 +235,7 @@ func (c *xCopy) parseMultiField(sfs []string, data *convertInfo) (aok bool) {
 // 解析赋值字段
 // NOTE
 // 优先解析copy，然后解析json，因为按照规则和习惯，大部分的字段最终名与json后的字段名一致
-func (c *xCopy) parseTag(fst reflect.StructField) (string, bool) {
+func (c *xCopy) parseTag(fst reflect.StructField) (string, bool, bool) {
 	// json -
 	// copy origin
 	sfi := strings.TrimSpace(fst.Tag.Get("copy"))
@@ -242,7 +247,16 @@ func (c *xCopy) parseTag(fst reflect.StructField) (string, bool) {
 	if sf == "" && c.jsonTag {
 		sf = strings.TrimSpace(strings.SplitN(strings.TrimSpace(fst.Tag.Get("json")), ",", 2)[0])
 	}
-	return sf, osf
+	ofn := false
+	if len(sf) > 0 {
+		sfs = strings.SplitN(sf, ":", 2)
+		ofn = strings.TrimSpace(sfs[0]) == FuncCopyFieldPrefix
+		if ofn && len(sfs) > 1 {
+			// 实际方法名称
+			sf = strings.TrimSpace(sfs[1])
+		}
+	}
+	return sf, ofn, osf
 }
 
 // 抽离函数，过滤不合法的字段
@@ -426,6 +440,7 @@ func (c *xCopy) recursionPointer(data *convertInfo) (*convertInfo, bool) {
 	nd.sv = data.dv
 	nd.df = data.df
 	nd.sf = data.sf
+	nd.ofn = data.ofn
 	nd.osf = data.osf
 
 	for {

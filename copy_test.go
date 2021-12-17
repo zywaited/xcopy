@@ -390,6 +390,41 @@ func testMethod(t *testing.T) {
 	require.Equal(t, strconv.Itoa(d.D), s.D)
 }
 
+type testCallMethod2 struct {
+	A int
+	B int
+}
+
+func (tcm *testCallMethod2) GetB() int {
+	return 200
+}
+
+func (tcm *testCallMethod2) GetC() string {
+	return "300"
+}
+
+func (tcm *testCallMethod2) NewTM() *testCallMethod {
+	return &testCallMethod{}
+}
+
+func testMethod2(t *testing.T) {
+	type dest struct {
+		A string
+		B int `copy:"func:newTM"`
+		C int `copy:"func:GetC, origin"`
+	}
+
+	d := &dest{}
+	s := &testCallMethod2{
+		A: 100,
+		B: 100,
+	}
+	require.Nil(t, c.CopyF(d, s))
+	require.Equal(t, d.A, strconv.Itoa(s.A))
+	require.Equal(t, d.B, (&testCallMethod{}).GetB())
+	require.Equal(t, strconv.Itoa(d.C), s.GetC())
+}
+
 func TestCopy(t *testing.T) {
 	c = NewCopy()
 	testStruct(t)
@@ -400,4 +435,5 @@ func TestCopy(t *testing.T) {
 	testTimeTo(t)
 	testToTime(t)
 	testMethod(t)
+	testMethod2(t)
 }
