@@ -20,10 +20,10 @@ var (
 
 func init() {
 	acv = make(map[reflect.Kind]ActualValue)
-	acv[reflect.Array] = arraySearchValue(defaultSearchValue(nil))
-	acv[reflect.Slice] = arraySearchValue(defaultSearchValue(nil))
-	acv[reflect.Map] = mapSearchValue(defaultSearchValue(nil))
-	acv[reflect.Struct] = stSearchValue(defaultSearchValue(nil))
+	acv[reflect.Array] = methodSearchValue(arraySearchValue(defaultSearchValue(nil)))
+	acv[reflect.Slice] = methodSearchValue(arraySearchValue(defaultSearchValue(nil)))
+	acv[reflect.Map] = methodSearchValue(mapSearchValue(defaultSearchValue(nil)))
+	acv[reflect.Struct] = methodSearchValue(stSearchValue(defaultSearchValue(nil)))
 }
 
 // 默认读取
@@ -132,5 +132,38 @@ func stSearchValue(next ActualValue) ActualValue {
 		}
 		data.sv = v
 		return
+	}
+}
+
+func methodSearchValue(next ActualValue) ActualValue {
+	return func(data *convertInfo) error {
+		if !data.ofn && next != nil {
+			return next(data)
+		}
+		if !data.ofn && next == nil {
+			return invalidValue
+		}
+		method := data.sf
+		if !data.osf {
+			method = ToCame(method)
+		}
+		mv := data.sv.MethodByName(method)
+		if !mv.IsValid() {
+			if !data.sv.CanAddr() {
+				return invalidValue
+			}
+			mv = data.sv.Addr().MethodByName(method)
+			if !mv.IsValid() {
+				return invalidValue
+			}
+		}
+		mt := mv.Type()
+		if mt.NumIn() > 0 || mt.NumOut() == 0 {
+			return invalidValue
+		}
+		// 这里要重置字段名称
+		data.sf = data.df
+		data.sv = mv.Call(nil)[0]
+		return nil
 	}
 }

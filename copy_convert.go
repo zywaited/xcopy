@@ -12,6 +12,7 @@ type (
 	convertInfo struct {
 		df  string
 		sf  string
+		ofn bool
 		osf bool
 		dv  reflect.Value
 		sv  reflect.Value

@@ -8,7 +8,7 @@ import (
 // 这个是为了在JSON或者转成MAP更改其字段
 // TS是用的驼峰
 
-// 字符串转换
+// Field 字符串转换
 type Field func(string) string
 
 func base(data interface{}) (reflect.Type, reflect.Value, bool) {
@@ -171,26 +171,26 @@ func mapToMap(dv reflect.Value, field Field) map[string]interface{} {
 	return mp
 }
 
-// 通用转换
+// To 通用转换
 func To(data interface{}) interface{} {
 	return ToWithField(data, nil)
 }
 
-// 对结构体字段进行转换
+// ToMap 对结构体字段进行转换
 // 依赖JSON TAG
 // NOTE 请调用方自行避免使用循环依赖, 与JSON保持一致，私有变量忽略
 func ToMap(data interface{}) map[string]interface{} {
 	return ToMapWithField(data, nil)
 }
 
-// 对数组进行每个元素进行转换
+// ToSlice 对数组进行每个元素进行转换
 func ToSlice(data interface{}) []interface{} {
 	return ToSliceWithField(data, nil)
 }
 
 // 封装了一些通用的中间函数
 
-// 原始结果
+// Origin 原始结果
 func Origin(next Field) Field {
 	return func(s string) string {
 		if next != nil {
@@ -200,7 +200,7 @@ func Origin(next Field) Field {
 	}
 }
 
-// 转下划线
+// Snake 转下划线
 func Snake(next Field) Field {
 	return func(s string) string {
 		s = ToSnake(s)
@@ -211,7 +211,7 @@ func Snake(next Field) Field {
 	}
 }
 
-// 转驼峰
+// Came 转驼峰
 func Came(next Field) Field {
 	return func(s string) string {
 		s = ToCame(s)
@@ -222,7 +222,7 @@ func Came(next Field) Field {
 	}
 }
 
-// 转大写
+// Upper 转大写
 func Upper(next Field) Field {
 	return func(s string) string {
 		s = strings.ToUpper(s)
@@ -233,7 +233,7 @@ func Upper(next Field) Field {
 	}
 }
 
-// 转小写
+// Lower 转小写
 func Lower(next Field) Field {
 	return func(s string) string {
 		s = strings.ToLower(s)
@@ -244,7 +244,7 @@ func Lower(next Field) Field {
 	}
 }
 
-// 首字母小写
+// LcFirst 首字母小写
 func LcFirst(next Field) Field {
 	return func(s string) string {
 		s = ToLcFirst(s)
@@ -255,7 +255,7 @@ func LcFirst(next Field) Field {
 	}
 }
 
-// 首字母大写
+// UcFirst 首字母大写
 func UcFirst(next Field) Field {
 	return func(s string) string {
 		s = ToUcFirst(s)

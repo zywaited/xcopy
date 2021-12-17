@@ -17,25 +17,32 @@
 
 ```go
 type (
-	dest struct {
-		Id        *int64 `copy:"pid"`      // source中Pid
-		Name      string `copy:"noname"`   // source不存在noname, 使用Name
-		Age       int    `copy:"real_age"` // source中的RealAge
-		Ignore    bool   `copy:"-"`        // 忽略该字段
-		Status    bool   // source中的Status
-		AliasName string `copy:"alias_name, origin"` // origin代表不对copy中的值做转换
-        MF        int    `copy:"MultiF.Id"` // source中的MultiF下的Id字段
-	}
-	source struct {
-		Pid     int
-		Name    string
-		RealAge int
-		Ignore  bool
+    dest struct {
+        Id        *int64 `copy:"pid"`      // source中Pid
+        Name      string `copy:"noname"`   // source不存在noname, 使用Name
+        Age       int    `copy:"real_age"` // source中的RealAge
+        Ignore    bool   `copy:"-"`        // 忽略该字段
+        Status    bool   // source中的Status
+        AliasName string `copy:"alias_name, origin"` // origin代表不对copy中的值做转换
+        MF        int    `copy:"MultiF.Id"`          // source中的MultiF下的Id字段
+        FuncName  string `copy:"func:GetFuncName"`   // source中的MultiF下的GetFuncName方法，依旧支持origin，默认是转成驼峰
+}
+	
+    source struct {
+        Pid     int
+        Name    string
+        RealAge int
+        Ignore  bool
         MultiF  struct {
             Id int
         }
-	}
+    }
 )
+
+func (s *source) GetFuncName() string {
+    return "copy-func"
+}
+
 
 var anotherSource = map[string]interface{}{"pid": 1, "alias_name": "med"}
 ```
