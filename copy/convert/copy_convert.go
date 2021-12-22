@@ -1,25 +1,18 @@
-package xcopy
+package convert
 
 import (
 	"reflect"
 	"strconv"
 	"time"
+
+	"github.com/zywaited/xcopy/utils"
 )
 
 const acFieldMethodNamePrefix = "Get"
 
 type (
-	convertInfo struct {
-		df  string
-		sf  string
-		ofn bool
-		osf bool
-		dv  reflect.Value
-		sv  reflect.Value
-	}
-
 	XConverter interface {
-		Convert(*convertInfo) reflect.Value
+		Convert(*Info) reflect.Value
 	}
 
 	XConverters interface {
@@ -53,8 +46,12 @@ func init() {
 	}
 }
 
+func AcDefaultXConverter() XConverters {
+	return xcms
+}
+
 // 默认都要走的处理器
-var dc = NewDefaultXConverter()
+var dc = NewDefaultMethodXConverter(NewDefaultXConverter())
 
 // 默认的转换器
 type defaultXConverter struct {
@@ -64,30 +61,71 @@ func NewDefaultXConverter() *defaultXConverter {
 	return &defaultXConverter{}
 }
 
-func (dc *defaultXConverter) Convert(data *convertInfo) reflect.Value {
-	if data.sf == "" || !data.sv.IsValid() {
-		return data.sv
+func (dc *defaultXConverter) Convert(data *Info) reflect.Value {
+	if data.GetSf() == "" || !data.GetSv().IsValid() {
+		return data.GetSv()
 	}
-	mn := acFieldMethodNamePrefix + ToCame(data.sf)
-	mv := data.sv.MethodByName(mn)
+	mn := acFieldMethodNamePrefix + utils.ToCame(data.GetSf())
+	mv := data.GetSv().MethodByName(mn)
 	if !mv.IsValid() {
-		if !data.sv.CanAddr() {
-			return data.sv
+		if !data.GetSv().CanAddr() {
+			return data.GetSv()
 		}
-		mv = data.sv.Addr().MethodByName(mn)
+		mv = data.GetSv().Addr().MethodByName(mn)
 		if !mv.IsValid() {
-			return data.sv
+			return data.GetSv()
 		}
 	}
 	mt := mv.Type()
 	if mt.NumIn() > 0 || mt.NumOut() == 0 {
-		return data.sv
+		return data.GetSv()
 	}
 	sv := mv.Call(nil)[0]
 	if !sv.IsValid() {
-		return data.sv
+		return data.GetSv()
 	}
 	return sv
+}
+
+type defaultMethodXConverter struct {
+	next XConverter
+}
+
+func NewDefaultMethodXConverter(next XConverter) *defaultMethodXConverter {
+	return &defaultMethodXConverter{next: next}
+}
+
+func (dm *defaultMethodXConverter) Convert(data *Info) (sv reflect.Value) {
+	sv = data.GetSv()
+	if data.GetSf() == "" || !sv.IsValid() {
+		return
+	}
+	rk := true
+	defer func() {
+		if !rk && dm.next != nil {
+			sv = dm.next.Convert(data)
+		}
+	}()
+	mn := utils.ToCame(data.GetSf())
+	mv := data.GetSv().MethodByName(mn)
+	if !mv.IsValid() {
+		if !data.GetSv().CanAddr() {
+			rk = false
+			return
+		}
+		mv = data.GetSv().Addr().MethodByName(mn)
+		if !mv.IsValid() {
+			rk = false
+			return
+		}
+	}
+	mt := mv.Type()
+	if mt.NumIn() > 0 || mt.NumOut() == 0 {
+		rk = false
+		return
+	}
+	sv = mv.Call(nil)[0]
+	return
 }
 
 type timeXConverter struct {
@@ -98,11 +136,11 @@ func NewTimeXConverter(next XConverter) *timeXConverter {
 	return &timeXConverter{next: next}
 }
 
-func (tc *timeXConverter) Convert(data *convertInfo) reflect.Value {
-	if !data.sv.IsValid() {
-		return data.sv
+func (tc *timeXConverter) Convert(data *Info) reflect.Value {
+	if !data.GetSv().IsValid() {
+		return data.GetSv()
 	}
-	sv := data.sv
+	sv := data.GetSv()
 	switch sv.Kind() {
 	case reflect.Int, reflect.Int32, reflect.Int64:
 		sv = reflect.ValueOf(time.Unix(sv.Int(), 0))
@@ -129,9 +167,9 @@ func NewIntXConverter(next XConverter) *IntXConverter {
 	return &IntXConverter{next: next}
 }
 
-func (ic *IntXConverter) Convert(data *convertInfo) (sv reflect.Value) {
-	sv = data.sv
-	if !data.sv.IsValid() {
+func (ic *IntXConverter) Convert(data *Info) (sv reflect.Value) {
+	sv = data.GetSv()
+	if !sv.IsValid() {
 		return
 	}
 	rk := true
@@ -140,26 +178,26 @@ func (ic *IntXConverter) Convert(data *convertInfo) (sv reflect.Value) {
 			sv = ic.next.Convert(data)
 		}
 	}()
-	st := data.sv.Type()
+	st := data.GetSv().Type()
 	kind := st.Kind()
 	if kind == reflect.Struct && st.PkgPath() == "time" && st.Name() == "Time" {
-		sv = reflect.ValueOf(data.sv.Interface().(time.Time).Unix())
+		sv = reflect.ValueOf(data.GetSv().Interface().(time.Time).Unix())
 		return
 	}
 	if kind != reflect.String {
 		rk = false
 		return
 	}
-	switch data.dv.Kind() {
+	switch data.GetDv().Kind() {
 	case reflect.Int, reflect.Int32, reflect.Int64:
-		d, err := strconv.Atoi(data.sv.String())
+		d, err := strconv.Atoi(data.GetSv().String())
 		if err != nil {
 			rk = false
 			return
 		}
 		sv = reflect.ValueOf(d)
 	case reflect.Uint, reflect.Uint32, reflect.Uint64:
-		d, err := strconv.ParseUint(data.sv.String(), 10, 0)
+		d, err := strconv.ParseUint(data.GetSv().String(), 10, 0)
 		if err != nil {
 			rk = false
 			return
@@ -177,9 +215,9 @@ func NewStringXConverter(next XConverter) *StringXConverter {
 	return &StringXConverter{next: next}
 }
 
-func (sc *StringXConverter) Convert(data *convertInfo) (sv reflect.Value) {
-	sv = data.sv
-	if !data.sv.IsValid() {
+func (sc *StringXConverter) Convert(data *Info) (sv reflect.Value) {
+	sv = data.GetSv()
+	if !data.GetSv().IsValid() {
 		return
 	}
 	rk := true
@@ -188,7 +226,7 @@ func (sc *StringXConverter) Convert(data *convertInfo) (sv reflect.Value) {
 			sv = sc.next.Convert(data)
 		}
 	}()
-	st := data.sv.Type()
+	st := data.GetSv().Type()
 	kind := st.Kind()
 	switch kind {
 	case reflect.Struct:
@@ -204,12 +242,12 @@ func (sc *StringXConverter) Convert(data *convertInfo) (sv reflect.Value) {
 		return
 	}
 	rk = false
-	mv := data.sv.MethodByName("String")
+	mv := data.GetSv().MethodByName("String")
 	if !mv.IsValid() {
-		if !data.sv.CanAddr() {
+		if !data.GetSv().CanAddr() {
 			return
 		}
-		mv = data.sv.Addr().MethodByName("String")
+		mv = data.GetSv().Addr().MethodByName("String")
 		if !mv.IsValid() {
 			return
 		}

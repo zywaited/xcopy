@@ -1,4 +1,4 @@
-package xcopy
+package utils
 
 import (
 	"testing"

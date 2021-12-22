@@ -1,4 +1,4 @@
-package xcopy
+package copy
 
 import (
 	"strconv"
@@ -254,8 +254,7 @@ func testMultiField(t *testing.T) {
 			Ages:    map[string]age{"f": {Age: 5}},
 			T:       tt{T: []int{1}},
 		}
-		c = c.SetNext(false)
-		require.Nil(t, c.CopySF(&d, s))
+		require.Nil(t, c.SetNext(false).CopySF(&d, s))
 		require.Equal(t, 0, d.private)
 		require.Equal(t, 0, d.ignore)
 		require.Equal(t, s.Ids.Id, d.Id)
@@ -358,6 +357,14 @@ func (tcm *testCallMethod) GetB() int {
 	return 200
 }
 
+func (tcm *testCallMethod) E() int {
+	return 500
+}
+
+func (tcm *testCallMethod) GetF() int {
+	return 600
+}
+
 func testMethod(t *testing.T) {
 	type dest struct {
 		A string
@@ -365,6 +372,8 @@ func testMethod(t *testing.T) {
 
 		C string
 		D int
+		E int
+		F int
 	}
 
 	type source struct {
@@ -373,6 +382,8 @@ func testMethod(t *testing.T) {
 
 		C int
 		D string
+		E *testCallMethod
+		F *testCallMethod
 	}
 
 	d := &dest{}
@@ -382,12 +393,16 @@ func testMethod(t *testing.T) {
 		B: tcm,
 		C: 100,
 		D: "300",
+		E: tcm,
+		F: tcm,
 	}
 	require.Nil(t, c.CopySF(d, s))
 	require.Equal(t, d.A, s.A.String())
 	require.Equal(t, d.B, s.B.GetB())
 	require.Equal(t, d.C, strconv.Itoa(s.C))
 	require.Equal(t, strconv.Itoa(d.D), s.D)
+	require.Equal(t, d.E, s.E.E())
+	require.Equal(t, d.F, s.F.GetF())
 }
 
 type testCallMethod2 struct {
@@ -396,11 +411,19 @@ type testCallMethod2 struct {
 }
 
 func (tcm *testCallMethod2) GetB() int {
-	return 200
+	return 300
 }
 
 func (tcm *testCallMethod2) GetC() string {
 	return "300"
+}
+
+func (tcm *testCallMethod2) GetD() int {
+	return 300
+}
+
+func (tcm *testCallMethod2) D() int {
+	return 400
 }
 
 func (tcm *testCallMethod2) NewTM() *testCallMethod {
@@ -412,6 +435,7 @@ func testMethod2(t *testing.T) {
 		A string
 		B int `copy:"func:newTM"`
 		C int `copy:"func:GetC, origin"`
+		D int
 	}
 
 	d := &dest{}
@@ -423,6 +447,29 @@ func testMethod2(t *testing.T) {
 	require.Equal(t, d.A, strconv.Itoa(s.A))
 	require.Equal(t, d.B, (&testCallMethod{}).GetB())
 	require.Equal(t, strconv.Itoa(d.C), s.GetC())
+	require.Equal(t, d.D, s.D())
+}
+
+type alias int
+
+func (x *alias) A() int {
+	return 1
+}
+
+func (x alias) GetB() int {
+	return 2
+}
+
+func testAlias(t *testing.T) {
+	type dest struct {
+		A int
+		B int
+	}
+	d := &dest{}
+	s := alias(1)
+	require.Nil(t, c.Copy(d, &s))
+	require.Equal(t, d.A, s.A())
+	require.Equal(t, d.B, s.GetB())
 }
 
 func TestCopy(t *testing.T) {
@@ -436,4 +483,5 @@ func TestCopy(t *testing.T) {
 	testToTime(t)
 	testMethod(t)
 	testMethod2(t)
+	testAlias(t)
 }
