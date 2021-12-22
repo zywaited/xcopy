@@ -1,4 +1,6 @@
-package xcopy
+package copy
+
+import "github.com/zywaited/xcopy/copy/convert"
 
 type Option func(*xCopy)
 
@@ -25,7 +27,7 @@ func WithJsonTag(jsonTag bool) Option {
 	}
 }
 
-func WithXCM(xcm XConverters) Option {
+func WithXCM(xcm convert.XConverters) Option {
 	return func(c *xCopy) {
 		c.xcm = xcm
 	}
