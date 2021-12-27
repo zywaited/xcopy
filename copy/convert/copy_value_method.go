@@ -1,6 +1,6 @@
 package convert
 
-import "github.com/zywaited/xcopy/utils"
+import "github.com/zywaited/xcopy/internal"
 
 func methodSearchValue(next ActualValue) ActualValue {
 	return func(data *Info) error {
@@ -12,7 +12,7 @@ func methodSearchValue(next ActualValue) ActualValue {
 		}
 		method := data.GetSf()
 		if !data.IsOsf() {
-			method = utils.ToCame(method)
+			method = internal.ToCame(method)
 		}
 		mv := data.GetSv().MethodByName(method)
 		if !mv.IsValid() {

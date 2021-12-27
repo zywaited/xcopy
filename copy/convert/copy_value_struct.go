@@ -3,7 +3,7 @@ package convert
 import (
 	"reflect"
 
-	"github.com/zywaited/xcopy/utils"
+	"github.com/zywaited/xcopy/internal"
 )
 
 func init() {
@@ -36,9 +36,9 @@ func stSearchValue(next ActualValue) ActualValue {
 			sf := data.GetSf()
 			switch i {
 			case 1:
-				sf = utils.ToCame(sf)
+				sf = internal.ToCame(sf)
 			default:
-				sf = utils.ToUcFirst(sf)
+				sf = internal.ToUcFirst(sf)
 			}
 			v := data.GetSv().FieldByName(sf)
 			if v.IsValid() {

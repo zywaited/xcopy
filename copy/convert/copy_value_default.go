@@ -3,7 +3,7 @@ package convert
 import (
 	"reflect"
 
-	"github.com/zywaited/xcopy/utils"
+	"github.com/zywaited/xcopy/internal"
 )
 
 func init() {
@@ -33,7 +33,7 @@ func defaultSearchValue(next ActualValue) ActualValue {
 				err = next(data)
 			}
 		}()
-		mn := acFieldMethodNamePrefix + utils.ToCame(data.GetSf())
+		mn := acFieldMethodNamePrefix + internal.ToCame(data.GetSf())
 		mv := data.GetSv().MethodByName(mn)
 		if !mv.IsValid() {
 			if !data.GetSv().CanAddr() {
@@ -70,7 +70,7 @@ func defaultMethodSearchValue(next ActualValue) ActualValue {
 				err = next(data)
 			}
 		}()
-		mn := utils.ToCame(data.GetSf())
+		mn := internal.ToCame(data.GetSf())
 		mv := data.GetSv().MethodByName(mn)
 		if !mv.IsValid() {
 			if !data.GetSv().CanAddr() {

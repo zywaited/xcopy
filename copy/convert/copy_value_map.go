@@ -3,7 +3,7 @@ package convert
 import (
 	"reflect"
 
-	"github.com/zywaited/xcopy/utils"
+	"github.com/zywaited/xcopy/internal"
 )
 
 func init() {
@@ -36,11 +36,11 @@ func mapSearchValue(next ActualValue) ActualValue {
 			sf := data.GetSf()
 			switch i {
 			case 1:
-				sf = utils.ToSnake(sf)
+				sf = internal.ToSnake(sf)
 			case 2:
-				sf = utils.ToLcFirst(utils.ToCame(sf))
+				sf = internal.ToLcFirst(internal.ToCame(sf))
 			case 3:
-				sf = utils.ToCame(sf)
+				sf = internal.ToCame(sf)
 			}
 			v := data.GetSv().MapIndex(reflect.ValueOf(sf))
 			if v.IsValid() {

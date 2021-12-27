@@ -45,26 +45,29 @@ func (sc *StringXConverter) Convert(data *Info) (sv reflect.Value) {
 		return
 	}
 	rk = false
-	mv := data.GetSv().MethodByName("String")
-	if !mv.IsValid() {
-		if !data.GetSv().CanAddr() {
-			return
-		}
-		mv = data.GetSv().Addr().MethodByName("String")
+	for _, name := range []string{"String", "ToString"} {
+		mv := data.GetSv().MethodByName(name)
 		if !mv.IsValid() {
-			return
+			if !data.GetSv().CanAddr() {
+				return
+			}
+			mv = data.GetSv().Addr().MethodByName(name)
+			if !mv.IsValid() {
+				return
+			}
 		}
-	}
-	mt := mv.Type()
-	if mt.NumIn() > 0 || mt.NumOut() == 0 {
+		mt := mv.Type()
+		if mt.NumIn() > 0 || mt.NumOut() == 0 {
+			continue
+		}
+		rsv := mv.Call(nil)[0]
+		// 因为是string函数，返回值按规范必须是string
+		if !rsv.IsValid() || rsv.Kind() != reflect.String {
+			continue
+		}
+		rk = true
+		sv = rsv
 		return
 	}
-	rsv := mv.Call(nil)[0]
-	// 因为是string函数，返回值按规范必须是string
-	if !rsv.IsValid() || rsv.Kind() != reflect.String {
-		return
-	}
-	rk = true
-	sv = rsv
 	return
 }

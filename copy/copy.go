@@ -3,7 +3,6 @@ package copy
 import (
 	"fmt"
 	"reflect"
-	"strings"
 	"sync"
 	"unsafe"
 
@@ -17,12 +16,21 @@ type XCopier interface {
 	Copy(dest, source interface{}) (err error)
 }
 
+// Deprecated
 type XCopy interface {
 	// CopySF 结构体赋值方法【这里抽离是为了兼容已有逻辑，可以使用CopyF替代】
 	CopySF(dest, source interface{}) (err error)
 	// CopyF 通用的赋值方法
 	CopyF(dest, source interface{}) (err error)
 }
+
+type kindCopier interface {
+	check(dv, sv reflect.Value) error
+	copy(c *xCopy, dv, sv reflect.Value) (err error)
+	recursion(c *xCopy, data, nd *convert.Info) bool
+}
+
+var kindCopiers = map[reflect.Kind]kindCopier{}
 
 // 字段赋值
 // 结构体赋值时对应字段可指定源的字段(`copy:"source's field"`)
@@ -44,9 +52,10 @@ type xCopy struct {
 	// 当copy赋值字段为空时是否需要读取JSON TAG中的字段
 	jsonTag bool
 
-	xcm convert.XConverters
-	acv convert.ActualValuer
-	cp  *sync.Pool
+	xcm         convert.XConverters
+	acv         convert.ActualValuer
+	cp          *sync.Pool
+	kindCopiers map[reflect.Kind]kindCopier
 }
 
 const (
@@ -77,19 +86,21 @@ func NewCopy(opts ...option.Option) *xCopy {
 		cp: &sync.Pool{New: func() interface{} {
 			return &convert.Info{}
 		}},
+		kindCopiers: kindCopiers,
 	}
 }
 
 // Clone 克隆
 func (c *xCopy) Clone() *xCopy {
 	return &xCopy{
-		convert:   c.convert,
-		next:      c.next,
-		recursion: c.recursion,
-		jsonTag:   c.jsonTag,
-		xcm:       c.xcm,
-		acv:       c.acv,
-		cp:        c.cp,
+		convert:     c.convert,
+		next:        c.next,
+		recursion:   c.recursion,
+		jsonTag:     c.jsonTag,
+		xcm:         c.xcm,
+		acv:         c.acv,
+		cp:          c.cp,
+		kindCopiers: c.kindCopiers,
 	}
 }
 
@@ -119,155 +130,6 @@ func (c *xCopy) SetJSONTag(jsonTag bool) *xCopy {
 	cp := c.Clone()
 	cp.jsonTag = jsonTag
 	return cp
-}
-
-// 重新定义赋值(带上dv的类型)
-func (c *xCopy) copySt(dv, sv reflect.Value) (err error) {
-	dt := dv.Type()
-	var (
-		fst    reflect.StructField
-		sf     string
-		ofn    bool
-		origin bool
-		se     error
-	)
-	data := c.cp.Get().(*convert.Info)
-	defer c.cp.Put(data)
-	// 赋值所有可能的字段
-	num := dt.NumField()
-	for i := 0; i < num; i++ {
-		fst = dt.Field(i)
-		sf, ofn, origin = c.parseTag(fst)
-
-		data.SetDf(fst.Name)
-		data.SetOsf(origin)
-		data.SetDv(dv)
-		data.SetSv(sv)
-
-		// 解析多级字段并且查看是否符合预期
-		sf = strings.Trim(sf, ".")
-		if sf != "" && strings.Index(sf, ".") > -1 {
-			tmpSfs := strings.Split(sf, ".")
-			sfs := make([]string, 0, len(tmpSfs))
-			sfi := 0
-			for i := range tmpSfs {
-				sff := strings.TrimSpace(tmpSfs[i])
-				if sff != "" {
-					sfs = append(sfs, sff)
-					sfi++
-				}
-			}
-			if sfi == 0 {
-				sf = ""
-			} else if sfi == 1 {
-				sf = sfs[0]
-			} else {
-				sf = sfs[sfi-1]
-				aok := c.parseMultiField(sfs[:sfi-1], data)
-				if !aok && !c.next {
-					err = errors.Errorf("赋值字段[%s]赋值失败: 源字段不存在或为nil", fst.Name)
-					return
-				}
-			}
-		}
-		// 如果是内嵌字段并且没有指定字段
-		if sf == "" && fst.Anonymous {
-			dat := fst.Type
-			dav := dv.FieldByName(fst.Name)
-			isNil := false
-			if dat.Kind() == reflect.Ptr {
-				dat = dat.Elem()
-				if dav.IsNil() {
-					if !dav.CanSet() {
-						continue
-					}
-					dav = reflect.New(dat)
-					isNil = true
-				}
-				dav = dav.Elem()
-			}
-			// 如果是结构体
-			if dat.Kind() == reflect.Struct {
-				se = c.copySt(dav, data.GetSv())
-				if se == nil && isNil {
-					dv.FieldByName(fst.Name).Set(dav.Addr())
-				}
-			}
-		} else {
-			data.SetOfn(ofn)
-			data.SetSf(strings.TrimSpace(sf))
-			se = c.setSf(data)
-		}
-		if se == nil || c.next {
-			continue
-		}
-		err = errors.Wrapf(se, "赋值字段[%s]赋值失败", fst.Name)
-		return
-	}
-	return
-}
-
-// 解析多级
-// 支持数组、map、结构体
-func (c *xCopy) parseMultiField(sfs []string, data *convert.Info) (aok bool) {
-	defer func() {
-		if pe := recover(); pe != nil {
-			aok = false
-			return
-		}
-	}()
-	for _, sf := range sfs {
-		kind := data.GetSv().Kind()
-		for kind == reflect.Ptr {
-			if data.GetSv().IsNil() {
-				return false
-			}
-			data.SetSv(data.GetSv().Elem())
-			kind = data.GetSv().Kind()
-		}
-		ach := c.acv.AC(kind)
-		// 递归重置
-		data.SetSf(strings.TrimSpace(sf))
-		err := ach(data)
-		if err != nil {
-			return false
-		}
-	}
-	// 兜底去除指针
-	for data.GetSv().Kind() == reflect.Ptr {
-		if data.GetSv().IsNil() {
-			return false
-		}
-		data.SetSv(data.GetSv().Elem())
-	}
-	return true
-}
-
-// 解析赋值字段
-// NOTE
-// 优先解析copy，然后解析json，因为按照规则和习惯，大部分的字段最终名与json后的字段名一致
-func (c *xCopy) parseTag(fst reflect.StructField) (string, bool, bool) {
-	// json -
-	// copy origin
-	sfi := strings.TrimSpace(fst.Tag.Get("copy"))
-	sf := ""
-	// split一定不为空
-	sfs := strings.SplitN(sfi, ",", 2)
-	sf = strings.TrimSpace(sfs[0])
-	osf := len(sfs) > 1 && strings.TrimSpace(sfs[1]) == OriginCopyField
-	if sf == "" && c.jsonTag {
-		sf = strings.TrimSpace(strings.SplitN(strings.TrimSpace(fst.Tag.Get("json")), ",", 2)[0])
-	}
-	ofn := false
-	if len(sf) > 0 {
-		sfs = strings.SplitN(sf, ":", 2)
-		ofn = strings.TrimSpace(sfs[0]) == FuncCopyFieldPrefix
-		if ofn && len(sfs) > 1 {
-			// 实际方法名称
-			sf = strings.TrimSpace(sfs[1])
-		}
-	}
-	return sf, ofn, osf
 }
 
 // 抽离函数，过滤不合法的字段
@@ -370,34 +232,11 @@ func (c *xCopy) value(data *convert.Info) bool {
 	dt = nd.GetDv().Type()
 	st = data.GetSv().Type()
 	if st != dt {
-		// 如果都为数组
-		if (dt.Kind() == reflect.Array || dt.Kind() == reflect.Slice) &&
-			(st.Kind() == reflect.Array || st.Kind() == reflect.Slice) {
-			return c.recursionSlice(data, nd)
+		kc := c.kindCopiers[dt.Kind()]
+		if kc == nil || kc.check(nd.GetDv(), data.GetSv()) != nil {
+			kc = c.kindCopiers[reflect.Invalid]
 		}
-		// 结构体
-		if dt.Kind() == reflect.Struct && (st.Kind() == reflect.Map || st.Kind() == reflect.Struct) {
-			// note 如果该字段与source是同一个，则会死循环
-			return c.recursionStruct(data, nd)
-		}
-		return c.convertValue(data, nd)
-	}
-	return true
-}
-
-// 强制转换: 调用该方法的时候已经不再是指针
-func (c *xCopy) convertValue(data, nd *convert.Info) bool {
-	dt := nd.GetDv().Type()
-	sv := data.GetSv()
-	nsv := nd.GetSv()
-	vh := c.xcm.AC(strings.TrimLeft(dt.PkgPath()+"."+dt.Name(), "."))
-	if vh != nil {
-		nd.SetSv(data.GetSv())
-		sv = vh.Convert(nd)
-	}
-	nd.GetDv().Set(sv.Convert(dt))
-	if data.GetDv() != nsv {
-		data.GetDv().Set(nsv)
+		return kc.recursion(c, data, nd)
 	}
 	return true
 }
@@ -433,7 +272,7 @@ func (c *xCopy) notRecursion(data *convert.Info) bool {
 		data.GetDv().Set(data.GetSv())
 		return true
 	}
-	return c.convertValue(data, data)
+	return c.kindCopiers[reflect.Invalid].recursion(c, data, data)
 }
 
 // 递归指针赋值
@@ -515,81 +354,14 @@ func (c *xCopy) recursionSlice(data, nd *convert.Info) bool {
 	return ok
 }
 
-// 递归结构体
-func (c *xCopy) recursionStruct(data, nd *convert.Info) bool {
-	err := c.copySt(nd.GetDv(), data.GetSv())
-	if err != nil {
-		panic(errors.Wrap(err, "递归结构体赋值失败"))
-	}
-	if data.GetDv() != nd.GetSv() {
-		data.GetDv().Set(nd.GetSv())
-	}
-	return true
-}
-
-// CopySF 为dest在source中存在的字段自动赋值
-// 结构体字段赋值函数
-// 通用请调用CopyF方法
+// Deprecated
 func (c *xCopy) CopySF(dest, source interface{}) (err error) {
-	if source == nil {
-		return errors.New("赋值体不存在")
-	}
-	defer func() {
-		if pe := recover(); pe != nil {
-			err = fmt.Errorf("赋值失败: [%#v]", pe)
-		}
-	}()
-	// 校验类型
-	dv := reflect.ValueOf(dest)
-	dt := dv.Type()
-	if dt.Kind() != reflect.Ptr {
-		err = errors.New("被赋值的结构体必须是指针类型")
-		return
-	}
-
-	// 真实数据
-	dv = dv.Elem()
-	if dv.Kind() != reflect.Struct {
-		err = errors.New("被赋值的不是结构体")
-		return
-	}
-
-	sv := reflect.Indirect(reflect.ValueOf(source))
-	err = c.copySt(dv, sv)
-	return
+	return c.Copy(dest, source)
 }
 
-// CopyF 单个赋值 通用的赋值方法
+// Deprecated
 func (c *xCopy) CopyF(dest, source interface{}) (err error) {
-	if source == nil {
-		return errors.New("赋值体不存在")
-	}
-	// 强制转换可能会出现异常
-	defer func() {
-		if pe := recover(); pe != nil {
-			err = fmt.Errorf("单体赋值失败: [%#v]", pe)
-		}
-	}()
-	// 校验类型
-	dv := reflect.ValueOf(dest)
-	dt := dv.Type()
-	if dt.Kind() != reflect.Ptr {
-		return errors.New("被赋值的单体必须是指针类型")
-	}
-	// 真实数据
-	dv = dv.Elem()
-	sv := reflect.Indirect(reflect.ValueOf(source))
-
-	// 重置数据
-	data := c.cp.Get().(*convert.Info)
-	defer c.cp.Put(data)
-	data.SetDf("")
-	data.SetSf("")
-	data.SetDv(dv)
-	data.SetSv(sv)
-
-	c.value(data)
-	return
+	return c.Copy(dest, source)
 }
 
 // Copy CopyF
@@ -602,9 +374,12 @@ func (c *xCopy) Copy(dest, source interface{}) error {
 	if dv.Type().Kind() != reflect.Ptr {
 		return errors.New("被赋值的单体必须是指针类型")
 	}
-	// 真实数据
-	if dv.Elem().Kind() == reflect.Struct {
-		return c.CopySF(dest, source)
+
+	dv = dv.Elem()
+	sv := reflect.Indirect(reflect.ValueOf(source))
+	kc := c.kindCopiers[dv.Type().Kind()]
+	if kc == nil {
+		kc = c.kindCopiers[reflect.Invalid]
 	}
-	return c.CopyF(dest, source)
+	return kc.copy(c, dv, sv)
 }

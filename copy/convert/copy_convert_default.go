@@ -3,7 +3,7 @@ package convert
 import (
 	"reflect"
 
-	"github.com/zywaited/xcopy/utils"
+	"github.com/zywaited/xcopy/internal"
 )
 
 // 默认都要走的处理器
@@ -21,7 +21,7 @@ func (dc *defaultXConverter) Convert(data *Info) reflect.Value {
 	if data.GetSf() == "" || !data.GetSv().IsValid() {
 		return data.GetSv()
 	}
-	mn := acFieldMethodNamePrefix + utils.ToCame(data.GetSf())
+	mn := acFieldMethodNamePrefix + internal.ToCame(data.GetSf())
 	mv := data.GetSv().MethodByName(mn)
 	if !mv.IsValid() {
 		if !data.GetSv().CanAddr() {
@@ -62,7 +62,7 @@ func (dm *defaultMethodXConverter) Convert(data *Info) (sv reflect.Value) {
 			sv = dm.next.Convert(data)
 		}
 	}()
-	mn := utils.ToCame(data.GetSf())
+	mn := internal.ToCame(data.GetSf())
 	mv := data.GetSv().MethodByName(mn)
 	if !mv.IsValid() {
 		if !data.GetSv().CanAddr() {
