@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/zywaited/xcopy/copy/convert"
+	"github.com/zywaited/xcopy/copy/option"
 
 	"github.com/pkg/errors"
 )
@@ -54,22 +55,29 @@ const (
 )
 
 // NewCopy 初始化默认
-func NewCopy(opts ...Option) *xCopy {
-	c := &xCopy{
-		convert:   true,
-		next:      true,
-		recursion: true,
-		jsonTag:   true,
-		xcm:       convert.AcDefaultXConverter(),
-		acv:       convert.AcDefaultActualValuer(),
+func NewCopy(opts ...option.Option) *xCopy {
+	c := option.Config{
+		Convert:   true,
+		Next:      true,
+		Recursion: true,
+		JsonTag:   true,
+		Xcm:       convert.AcDefaultXConverter(),
+		Acv:       convert.AcDefaultActualValuer(),
+	}
+	for _, opt := range opts {
+		opt(&c)
+	}
+	return &xCopy{
+		convert:   c.Convert,
+		next:      c.Next,
+		recursion: c.Recursion,
+		jsonTag:   c.JsonTag,
+		xcm:       c.Xcm,
+		acv:       c.Acv,
 		cp: &sync.Pool{New: func() interface{} {
 			return &convert.Info{}
 		}},
 	}
-	for _, opt := range opts {
-		opt(c)
-	}
-	return c
 }
 
 // Clone 克隆
@@ -88,28 +96,28 @@ func (c *xCopy) Clone() *xCopy {
 // SetConvert 是否强转
 func (c *xCopy) SetConvert(convert bool) *xCopy {
 	cp := c.Clone()
-	WithConvert(convert)(cp)
+	cp.convert = convert
 	return cp
 }
 
 // SetNext 出错是否继续赋值下一个字段
 func (c *xCopy) SetNext(next bool) *xCopy {
 	cp := c.Clone()
-	WithNext(next)(cp)
+	cp.next = next
 	return cp
 }
 
 // SetRecursion 是否递归（依赖强转）
 func (c *xCopy) SetRecursion(recursion bool) *xCopy {
 	cp := c.Clone()
-	WithRecursion(recursion)(cp)
+	cp.recursion = recursion
 	return cp
 }
 
 // SetJSONTag 是否读取JSON TAG
 func (c *xCopy) SetJSONTag(jsonTag bool) *xCopy {
 	cp := c.Clone()
-	WithJsonTag(jsonTag)(cp)
+	cp.jsonTag = jsonTag
 	return cp
 }
 
