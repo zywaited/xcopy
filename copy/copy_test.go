@@ -470,6 +470,41 @@ func testAlias(t *testing.T) {
 	require.Nil(t, c.Copy(d, &s))
 	require.Equal(t, d.A, s.A())
 	require.Equal(t, d.B, s.GetB())
+	{
+		type dest struct {
+			Id   int
+			Http string
+		}
+		type source struct {
+			ID   string
+			HTTP string
+		}
+		d := dest{}
+		s := source{
+			ID:   "1",
+			HTTP: "xxx",
+		}
+		require.Nil(t, c.Copy(&d, s))
+		require.Equal(t, strconv.Itoa(d.Id), s.ID)
+		require.Equal(t, d.Http, s.HTTP)
+	}
+	{
+		type dest struct {
+			CampName  string `json:"camp_name"`
+			CampName2 string `json:"camp_name_2"`
+			CampName3 string `json:"campName3"`
+		}
+		d := dest{}
+		s := map[string]string{
+			"campName":   "a",
+			"CampName2":  "b",
+			"camp_name3": "c",
+		}
+		require.Nil(t, c.Copy(&d, s))
+		require.Equal(t, d.CampName, s["campName"])
+		require.Equal(t, d.CampName2, s["CampName2"])
+		require.Equal(t, d.CampName3, s["camp_name3"])
+	}
 }
 
 func TestCopy(t *testing.T) {
