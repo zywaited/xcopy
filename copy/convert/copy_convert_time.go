@@ -5,8 +5,11 @@ import (
 	"time"
 )
 
+const timeConverterName = "time.Time"
+
 func init() {
-	xcms.Register("time.Time", NewTimeXConverter(dc))
+	xcms.SkipCopier(timeConverterName)
+	xcms.Register(timeConverterName, NewTimeXConverter(dc))
 }
 
 type timeXConverter struct {
@@ -35,6 +38,35 @@ func (tc *timeXConverter) Convert(data *Info) reflect.Value {
 	default:
 		if tc.next != nil {
 			sv = tc.next.Convert(data)
+		}
+		if sv != data.GetSv() {
+			return sv
+		}
+		for _, name := range []string{"Time", "ToTime"} {
+			mv := data.GetSv().MethodByName(name)
+			if !mv.IsValid() {
+				if !data.GetSv().CanAddr() {
+					continue
+				}
+				mv = data.GetSv().Addr().MethodByName(name)
+				if !mv.IsValid() {
+					continue
+				}
+			}
+			mt := mv.Type()
+			if mt.NumIn() > 0 || mt.NumOut() == 0 {
+				continue
+			}
+			rsv := mv.Call(nil)[0]
+			// 因为是string函数，返回值按规范必须是string
+			if !rsv.IsValid() {
+				continue
+			}
+			rst := rsv.Type()
+			if rst.Kind() != reflect.Struct || rst.PkgPath()+"."+rst.Name() != timeConverterName {
+				continue
+			}
+			return rsv
 		}
 	}
 	return sv

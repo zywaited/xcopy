@@ -18,42 +18,38 @@ func NewStringXConverter(next XConverter) *StringXConverter {
 	return &StringXConverter{next: next}
 }
 
-func (sc *StringXConverter) Convert(data *Info) (sv reflect.Value) {
-	sv = data.GetSv()
-	if !data.GetSv().IsValid() {
-		return
+func (sc *StringXConverter) Convert(data *Info) reflect.Value {
+	sv := data.GetSv()
+	if !sv.IsValid() {
+		return sv
 	}
-	rk := true
-	defer func() {
-		if !rk && sc.next != nil {
-			sv = sc.next.Convert(data)
-		}
-	}()
-	st := data.GetSv().Type()
+	st := sv.Type()
 	kind := st.Kind()
 	switch kind {
 	case reflect.Struct:
 		if st.PkgPath() == "time" && st.Name() == "Time" {
-			sv = reflect.ValueOf(sv.Interface().(time.Time).Format("2006-01-02 15:04:05"))
-			return
+			return reflect.ValueOf(sv.Interface().(time.Time).Format("2006-01-02 15:04:05"))
 		}
 	case reflect.Int8, reflect.Int16, reflect.Int, reflect.Int32, reflect.Int64:
-		sv = reflect.ValueOf(strconv.FormatInt(sv.Int(), 10))
-		return
+		return reflect.ValueOf(strconv.FormatInt(sv.Int(), 10))
 	case reflect.Uint8, reflect.Uint16, reflect.Uint, reflect.Uint32, reflect.Uint64:
-		sv = reflect.ValueOf(strconv.FormatUint(sv.Uint(), 10))
-		return
+		return reflect.ValueOf(strconv.FormatUint(sv.Uint(), 10))
 	}
-	rk = false
+	if sc.next != nil {
+		sv = sc.next.Convert(data)
+	}
+	if sv != data.GetSv() {
+		return sv
+	}
 	for _, name := range []string{"String", "ToString"} {
 		mv := data.GetSv().MethodByName(name)
 		if !mv.IsValid() {
 			if !data.GetSv().CanAddr() {
-				return
+				continue
 			}
 			mv = data.GetSv().Addr().MethodByName(name)
 			if !mv.IsValid() {
-				return
+				continue
 			}
 		}
 		mt := mv.Type()
@@ -65,9 +61,7 @@ func (sc *StringXConverter) Convert(data *Info) (sv reflect.Value) {
 		if !rsv.IsValid() || rsv.Kind() != reflect.String {
 			continue
 		}
-		rk = true
-		sv = rsv
-		return
+		return rsv
 	}
-	return
+	return sv
 }

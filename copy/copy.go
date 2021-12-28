@@ -1,7 +1,6 @@
 package copy
 
 import (
-	"fmt"
 	"reflect"
 	"sync"
 	"unsafe"
@@ -132,46 +131,6 @@ func (c *xCopy) SetJSONTag(jsonTag bool) *xCopy {
 	return cp
 }
 
-// 抽离函数，过滤不合法的字段
-func (c *xCopy) setSf(data *convert.Info) (err error) {
-	// 强制转换可能会出现异常
-	defer func() {
-		if pe := recover(); pe != nil {
-			err = fmt.Errorf("赋值失败: [%#v]", pe)
-		}
-	}()
-
-	// 检车字段是否有效
-	if data.GetSf() == "" {
-		data.SetSf(data.GetDf())
-	}
-	if data.GetDf() == "" && data.GetSf() == "" || data.GetSf() == "-" {
-		return
-	}
-
-	dFieldValue := data.GetDv().FieldByName(data.GetDf())
-	// 判断是否结构体字段存在
-	if !dFieldValue.IsValid() || !dFieldValue.CanSet() {
-		return
-	}
-	// 源字段检查
-	stKind := data.GetSv().Kind()
-	ach := c.acv.AC(stKind)
-	err = ach(data)
-	if err != nil {
-		return err
-	}
-	sFieldValue := data.GetSv()
-	if !sFieldValue.IsValid() {
-		err = errors.New("赋值类型必须是struct、map或者array(slice); 源字段不存在")
-		return
-	}
-	data.SetDv(dFieldValue)
-	data.SetSv(sFieldValue)
-	c.value(data)
-	return
-}
-
 // NOTE 复杂逻辑不符合预期: 递归结构体、多级指针
 // 抽离函数，真正的赋值操作
 func (c *xCopy) value(data *convert.Info) bool {
@@ -233,7 +192,8 @@ func (c *xCopy) value(data *convert.Info) bool {
 	st = data.GetSv().Type()
 	if st != dt {
 		kc := c.kindCopiers[dt.Kind()]
-		if kc == nil || kc.check(nd.GetDv(), data.GetSv()) != nil {
+		// note: 注册了强制转换则不再递归
+		if kc == nil || c.xcm.SC(dt.PkgPath()+"."+dt.Name()) || kc.check(nd.GetDv(), data.GetSv()) != nil {
 			kc = c.kindCopiers[reflect.Invalid]
 		}
 		return kc.recursion(c, data, nd)

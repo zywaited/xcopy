@@ -1,6 +1,7 @@
 package copy
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -95,7 +96,7 @@ func (sc *structCopier) copy(c *xCopy, dv, sv reflect.Value) (err error) {
 		} else {
 			data.SetOfn(ofn)
 			data.SetSf(strings.TrimSpace(sf))
-			se = c.setSf(data)
+			se = sc.setSf(c, data)
 		}
 		if se == nil || c.next {
 			continue
@@ -103,6 +104,46 @@ func (sc *structCopier) copy(c *xCopy, dv, sv reflect.Value) (err error) {
 		err = errors.Wrapf(se, "赋值字段[%s]赋值失败", fst.Name)
 		return
 	}
+	return
+}
+
+// 抽离函数，过滤不合法的字段
+func (sc *structCopier) setSf(c *xCopy, data *convert.Info) (err error) {
+	// 强制转换可能会出现异常
+	defer func() {
+		if pe := recover(); pe != nil {
+			err = fmt.Errorf("赋值失败: [%#v]", pe)
+		}
+	}()
+
+	// 检车字段是否有效
+	if data.GetSf() == "" {
+		data.SetSf(data.GetDf())
+	}
+	if data.GetDf() == "" && data.GetSf() == "" || data.GetSf() == "-" {
+		return
+	}
+
+	dFieldValue := data.GetDv().FieldByName(data.GetDf())
+	// 判断是否结构体字段存在
+	if !dFieldValue.IsValid() || !dFieldValue.CanSet() {
+		return
+	}
+	// 源字段检查
+	stKind := data.GetSv().Kind()
+	ach := c.acv.AC(stKind)
+	err = ach(data)
+	if err != nil {
+		return err
+	}
+	sFieldValue := data.GetSv()
+	if !sFieldValue.IsValid() {
+		err = errors.New("赋值类型必须是struct、map或者array(slice); 源字段不存在")
+		return
+	}
+	data.SetDv(dFieldValue)
+	data.SetSv(sFieldValue)
+	c.value(data)
 	return
 }
 

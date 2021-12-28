@@ -36,7 +36,7 @@ func (ic *IntXConverter) Convert(data *Info) (sv reflect.Value) {
 	}()
 	st := data.GetSv().Type()
 	kind := st.Kind()
-	if kind == reflect.Struct && st.PkgPath() == "time" && st.Name() == "Time" {
+	if kind == reflect.Struct && st.PkgPath()+"."+st.Name() == timeConverterName {
 		sv = reflect.ValueOf(data.GetSv().Interface().(time.Time).Unix())
 		return
 	}

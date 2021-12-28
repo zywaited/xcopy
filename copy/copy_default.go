@@ -30,6 +30,8 @@ func (dc *defaultCopier) copy(c *xCopy, dv, sv reflect.Value) error {
 	defer c.cp.Put(data)
 	data.SetDf("")
 	data.SetSf("")
+	data.SetOsf(false)
+	data.SetOfn(false)
 	data.SetDv(dv)
 	data.SetSv(sv)
 	c.value(data)

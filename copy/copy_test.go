@@ -16,19 +16,22 @@ func testStruct(t *testing.T) {
 	{
 		type (
 			dest struct {
-				Id   int
-				Name string
+				Id    int
+				Name  string
+				Valid bool
 			}
 			source struct {
-				Id   int
-				Name *string
+				Id    int
+				Name  *string
+				Valid string
 			}
 		)
 		d := dest{}
-		s := source{id, &name}
+		s := source{id, &name, "true"}
 		require.Nil(t, c.Copy(&d, s))
 		require.Equal(t, id, d.Id)
 		require.Equal(t, name, d.Name)
+		require.Equal(t, d.Valid, true)
 	}
 	{
 		type (
@@ -123,6 +126,7 @@ func testMap(t *testing.T) {
 				RealName *string `json:"name"`
 				Type     *int8   `copy:", origin "`
 				RealAge  int     `copy:"RealAge"`
+				Mt       map[string]int
 			}
 		)
 
@@ -132,6 +136,13 @@ func testMap(t *testing.T) {
 			"name":     "med",
 			"Type":     &st,
 			"real_age": 18,
+			"mt": struct {
+				Id  int    `json:"id"`
+				Age string `json:"age"`
+			}{
+				Id:  1,
+				Age: "18",
+			},
 		}
 		d := &dest{}
 		require.Nil(t, c.Copy(d, source))
@@ -141,6 +152,9 @@ func testMap(t *testing.T) {
 		require.Equal(t, *d.RealName, source["name"])
 		require.EqualValues(t, *d.Type, *source["Type"].(*int32))
 		require.Equal(t, d.RealAge, source["real_age"])
+		require.NotNil(t, d.Mt)
+		require.Equal(t, d.Mt["id"], 1)
+		require.Equal(t, d.Mt["age"], 18)
 	}
 }
 
@@ -507,6 +521,79 @@ func testAlias(t *testing.T) {
 	}
 }
 
+func testMapArray(t *testing.T) {
+	{
+		s := []string{"1", "2"}
+		d := []int{}
+		require.Nil(t, c.Copy(&d, s))
+		require.Equal(t, len(s), len(d))
+		require.Equal(t, strconv.Itoa(d[0]), s[0])
+		require.Equal(t, strconv.Itoa(d[1]), s[1])
+	}
+	{
+		var d map[string]string
+		s := struct {
+			A string `json:"a"`
+			B int    `json:"b"`
+			C *defaultMethod
+			D *defaultMethod `json:"d,omitempty"`
+			E *defaultMethod `json:"-"`
+		}{
+			A: "xxx",
+			B: 1,
+			C: &defaultMethod{now: time.Now()},
+			E: &defaultMethod{now: time.Now()},
+		}
+		require.Nil(t, c.Copy(&d, s))
+		require.NotNil(t, d)
+		require.Equal(t, d["a"], s.A)
+		require.Equal(t, d["b"], strconv.Itoa(s.B))
+		require.Equal(t, d["C"], s.C.String())
+		require.Equal(t, d["D"], "")
+		require.Equal(t, d["E"], "")
+		require.Equal(t, d["e"], "")
+	}
+	{
+		dm := &defaultMethod{now: time.Now()}
+		var d map[string]string
+		s := map[int]interface{}{1: 1, 2: dm}
+		require.Nil(t, c.Copy(&d, s))
+		require.NotNil(t, d)
+		require.Equal(t, d["1"], strconv.Itoa(s[1].(int)))
+		require.Equal(t, d["2"], dm.String())
+	}
+}
+
+type defaultMethod struct {
+	now time.Time
+}
+
+func (dm *defaultMethod) ToTime() time.Time {
+	return dm.now
+}
+
+func (dm *defaultMethod) String() string {
+	return dm.now.Format("2006-01-02 15:04:05")
+}
+
+func testDefaultMethod(t *testing.T) {
+	dm := &defaultMethod{now: time.Now()}
+	s := struct {
+		Now  *defaultMethod
+		Date *defaultMethod
+	}{
+		Now:  dm,
+		Date: dm,
+	}
+	d := struct {
+		Now  *time.Time
+		Date string
+	}{}
+	require.Nil(t, c.Copy(&d, s))
+	require.Equal(t, *d.Now, dm.now)
+	require.Equal(t, d.Now.Format("2006-01-02 15:04:05"), dm.String())
+}
+
 func TestCopy(t *testing.T) {
 	c = NewCopy()
 	testStruct(t)
@@ -519,4 +606,6 @@ func TestCopy(t *testing.T) {
 	testMethod(t)
 	testMethod2(t)
 	testAlias(t)
+	testMapArray(t)
+	testDefaultMethod(t)
 }

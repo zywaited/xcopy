@@ -12,23 +12,42 @@ type (
 	}
 
 	XConverters interface {
+		SC(string) bool
 		AC(string) XConverter
 	}
 
-	NConverterM map[string]XConverter
+	converterMS struct {
+		m map[string]XConverter
+		f map[string]bool
+	}
 )
 
-var xcms = make(NConverterM)
-
-func (xcm NConverterM) AC(name string) XConverter {
-	if xcm[name] == nil {
-		return dc
+func newConverterMS() *converterMS {
+	return &converterMS{
+		m: make(map[string]XConverter),
+		f: make(map[string]bool),
 	}
-	return xcm[name]
 }
 
-func (xcm NConverterM) Register(name string, xc XConverter) {
-	xcm[name] = xc
+var xcms = newConverterMS()
+
+func (xcm *converterMS) SC(name string) bool {
+	return xcm.f[name]
+}
+
+func (xcm *converterMS) AC(name string) XConverter {
+	if xcm.m[name] == nil {
+		return dc
+	}
+	return xcm.m[name]
+}
+
+func (xcm *converterMS) Register(name string, xc XConverter) {
+	xcm.m[name] = xc
+}
+
+func (xcm *converterMS) SkipCopier(name string) {
+	xcm.f[name] = true
 }
 
 func AcDefaultXConverter() XConverters {
