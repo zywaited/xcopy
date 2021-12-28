@@ -16,19 +16,22 @@ func testStruct(t *testing.T) {
 	{
 		type (
 			dest struct {
-				Id   int
-				Name string
+				Id    int
+				Name  string
+				Valid bool
 			}
 			source struct {
-				Id   int
-				Name *string
+				Id    int
+				Name  *string
+				Valid string
 			}
 		)
 		d := dest{}
-		s := source{id, &name}
-		require.Nil(t, c.CopySF(&d, s))
+		s := source{id, &name, "true"}
+		require.Nil(t, c.Copy(&d, s))
 		require.Equal(t, id, d.Id)
 		require.Equal(t, name, d.Name)
+		require.Equal(t, d.Valid, true)
 	}
 	{
 		type (
@@ -43,7 +46,7 @@ func testStruct(t *testing.T) {
 		)
 		d := dest{}
 		s := source{int64(id), name}
-		require.Nil(t, c.CopySF(&d, s))
+		require.Nil(t, c.Copy(&d, s))
 		require.Equal(t, int8(id), d.Id)
 		require.NotNil(t, d.Name)
 		require.Equal(t, name, *d.Name)
@@ -59,7 +62,7 @@ func testStruct(t *testing.T) {
 		)
 		d := dest{}
 		s := source{&id}
-		require.Nil(t, c.CopySF(&d, s))
+		require.Nil(t, c.Copy(&d, s))
 		require.Equal(t, int64(id), d.Id)
 	}
 	{
@@ -73,7 +76,7 @@ func testStruct(t *testing.T) {
 		)
 		d := dest{}
 		s := source{&id}
-		require.Nil(t, c.CopySF(&d, s))
+		require.Nil(t, c.Copy(&d, s))
 		require.NotNil(t, d.Id)
 		require.Equal(t, int8(id), *d.Id)
 	}
@@ -88,7 +91,7 @@ func testStruct(t *testing.T) {
 		)
 		d := dest{}
 		s := source{id}
-		require.Nil(t, c.CopySF(&d, s))
+		require.Nil(t, c.Copy(&d, s))
 		require.NotNil(t, d.Id)
 		require.Equal(t, int64(id), *d.Id)
 	}
@@ -107,7 +110,7 @@ func testStruct(t *testing.T) {
 		)
 		d := dest{}
 		s := source{Pid: id, Name: "med", RealAge: 18}
-		require.Nil(t, c.CopySF(&d, s))
+		require.Nil(t, c.Copy(&d, s))
 		require.NotNil(t, d.Id)
 		require.Equal(t, int64(id), *d.Id)
 		require.Equal(t, s.Name, d.Name)
@@ -123,6 +126,7 @@ func testMap(t *testing.T) {
 				RealName *string `json:"name"`
 				Type     *int8   `copy:", origin "`
 				RealAge  int     `copy:"RealAge"`
+				Mt       map[string]int
 			}
 		)
 
@@ -132,15 +136,25 @@ func testMap(t *testing.T) {
 			"name":     "med",
 			"Type":     &st,
 			"real_age": 18,
+			"mt": struct {
+				Id  int    `json:"id"`
+				Age string `json:"age"`
+			}{
+				Id:  1,
+				Age: "18",
+			},
 		}
 		d := &dest{}
-		require.Nil(t, c.CopySF(d, source))
+		require.Nil(t, c.Copy(d, source))
 		require.EqualValues(t, st, d.Id)
 		require.NotNil(t, d.RealName)
 		require.NotNil(t, d.Type)
 		require.Equal(t, *d.RealName, source["name"])
 		require.EqualValues(t, *d.Type, *source["Type"].(*int32))
 		require.Equal(t, d.RealAge, source["real_age"])
+		require.NotNil(t, d.Mt)
+		require.Equal(t, d.Mt["id"], 1)
+		require.Equal(t, d.Mt["age"], 18)
 	}
 }
 
@@ -196,7 +210,7 @@ func testRecursion(t *testing.T) {
 		s.Real = append(s.Real, repeats{2})
 
 		d := dest{}
-		require.Nil(t, c.CopyF(&d, s))
+		require.Nil(t, c.Copy(&d, s))
 		require.EqualValues(t, d.Id, s.Id)
 		require.NotNil(t, d.DestOne)
 		require.Equal(t, *d.DestOne, s.DestOne)
@@ -254,7 +268,7 @@ func testMultiField(t *testing.T) {
 			Ages:    map[string]age{"f": {Age: 5}},
 			T:       tt{T: []int{1}},
 		}
-		require.Nil(t, c.SetNext(false).CopySF(&d, s))
+		require.Nil(t, c.SetNext(false).Copy(&d, s))
 		require.Equal(t, 0, d.private)
 		require.Equal(t, 0, d.ignore)
 		require.Equal(t, s.Ids.Id, d.Id)
@@ -264,7 +278,7 @@ func testMultiField(t *testing.T) {
 		require.Equal(t, s.T.T[0], *d.Test)
 
 		d = dest{}
-		require.Nil(t, c.CopyF(&d, s))
+		require.Nil(t, c.Copy(&d, s))
 		require.Equal(t, 0, d.private)
 		require.Equal(t, 0, d.ignore)
 		require.Equal(t, s.Ids.Id, d.Id)
@@ -297,7 +311,7 @@ func testAnonymous(t *testing.T) {
 		Age: 18,
 	}
 	td := &d1{}
-	require.Nil(t, c.CopySF(td, s))
+	require.Nil(t, c.Copy(td, s))
 	require.Equal(t, s.Id, td.Id)
 	require.Equal(t, s.Age, td.Age)
 
@@ -306,7 +320,7 @@ func testAnonymous(t *testing.T) {
 		Age int
 	}
 	td2 := &d2{}
-	require.Nil(t, c.CopySF(td2, s))
+	require.Nil(t, c.Copy(td2, s))
 	require.Equal(t, s.Id, td2.Id)
 	require.Equal(t, s.Age, td2.Age)
 }
@@ -323,7 +337,7 @@ func testTimeTo(t *testing.T) {
 	now := time.Now()
 	s := &source{Now: &now, Next: now}
 	d := &dest{}
-	require.Nil(t, c.CopySF(d, s))
+	require.Nil(t, c.Copy(d, s))
 	require.EqualValues(t, d.Now, now.Unix())
 	require.EqualValues(t, d.Next, now.Format("2006-01-02 15:04:05"))
 }
@@ -340,7 +354,7 @@ func testToTime(t *testing.T) {
 	now := time.Now()
 	d := &dest{}
 	s := &source{Now: now.Unix(), Next: now.Format("2006-01-02 15:04:05")}
-	require.Nil(t, c.CopySF(d, s))
+	require.Nil(t, c.Copy(d, s))
 	require.NotNil(t, d.Now)
 	require.EqualValues(t, now.Unix(), (*d.Now).Unix())
 	require.EqualValues(t, now.Format("2006-01-02 15:04:05"), d.Next.Format("2006-01-02 15:04:05"))
@@ -396,7 +410,7 @@ func testMethod(t *testing.T) {
 		E: tcm,
 		F: tcm,
 	}
-	require.Nil(t, c.CopySF(d, s))
+	require.Nil(t, c.Copy(d, s))
 	require.Equal(t, d.A, s.A.String())
 	require.Equal(t, d.B, s.B.GetB())
 	require.Equal(t, d.C, strconv.Itoa(s.C))
@@ -443,7 +457,7 @@ func testMethod2(t *testing.T) {
 		A: 100,
 		B: 100,
 	}
-	require.Nil(t, c.CopyF(d, s))
+	require.Nil(t, c.Copy(d, s))
 	require.Equal(t, d.A, strconv.Itoa(s.A))
 	require.Equal(t, d.B, (&testCallMethod{}).GetB())
 	require.Equal(t, strconv.Itoa(d.C), s.GetC())
@@ -470,6 +484,114 @@ func testAlias(t *testing.T) {
 	require.Nil(t, c.Copy(d, &s))
 	require.Equal(t, d.A, s.A())
 	require.Equal(t, d.B, s.GetB())
+	{
+		type dest struct {
+			Id   int
+			Http string
+		}
+		type source struct {
+			ID   string
+			HTTP string
+		}
+		d := dest{}
+		s := source{
+			ID:   "1",
+			HTTP: "xxx",
+		}
+		require.Nil(t, c.Copy(&d, s))
+		require.Equal(t, strconv.Itoa(d.Id), s.ID)
+		require.Equal(t, d.Http, s.HTTP)
+	}
+	{
+		type dest struct {
+			CampName  string `json:"camp_name"`
+			CampName2 string `json:"camp_name_2"`
+			CampName3 string `json:"campName3"`
+		}
+		d := dest{}
+		s := map[string]string{
+			"campName":   "a",
+			"CampName2":  "b",
+			"camp_name3": "c",
+		}
+		require.Nil(t, c.Copy(&d, s))
+		require.Equal(t, d.CampName, s["campName"])
+		require.Equal(t, d.CampName2, s["CampName2"])
+		require.Equal(t, d.CampName3, s["camp_name3"])
+	}
+}
+
+func testMapArray(t *testing.T) {
+	{
+		s := []string{"1", "2"}
+		d := []int{}
+		require.Nil(t, c.Copy(&d, s))
+		require.Equal(t, len(s), len(d))
+		require.Equal(t, strconv.Itoa(d[0]), s[0])
+		require.Equal(t, strconv.Itoa(d[1]), s[1])
+	}
+	{
+		var d map[string]string
+		s := struct {
+			A string `json:"a"`
+			B int    `json:"b"`
+			C *defaultMethod
+			D *defaultMethod `json:"d,omitempty"`
+			E *defaultMethod `json:"-"`
+		}{
+			A: "xxx",
+			B: 1,
+			C: &defaultMethod{now: time.Now()},
+			E: &defaultMethod{now: time.Now()},
+		}
+		require.Nil(t, c.Copy(&d, s))
+		require.NotNil(t, d)
+		require.Equal(t, d["a"], s.A)
+		require.Equal(t, d["b"], strconv.Itoa(s.B))
+		require.Equal(t, d["C"], s.C.String())
+		require.Equal(t, d["D"], "")
+		require.Equal(t, d["E"], "")
+		require.Equal(t, d["e"], "")
+	}
+	{
+		dm := &defaultMethod{now: time.Now()}
+		var d map[string]string
+		s := map[int]interface{}{1: 1, 2: dm}
+		require.Nil(t, c.Copy(&d, s))
+		require.NotNil(t, d)
+		require.Equal(t, d["1"], strconv.Itoa(s[1].(int)))
+		require.Equal(t, d["2"], dm.String())
+	}
+}
+
+type defaultMethod struct {
+	now time.Time
+}
+
+func (dm *defaultMethod) ToTime() time.Time {
+	return dm.now
+}
+
+func (dm *defaultMethod) String() string {
+	return dm.now.Format("2006-01-02 15:04:05")
+}
+
+func testDefaultMethod(t *testing.T) {
+	dm := &defaultMethod{now: time.Now()}
+	s := struct {
+		Now  *defaultMethod
+		Date *defaultMethod
+	}{
+		Now:  dm,
+		Date: dm,
+	}
+	d := struct {
+		Now  *time.Time
+		Date string
+	}{}
+	require.Nil(t, c.Copy(&d, s))
+	require.Equal(t, *d.Now, dm.now)
+	require.Equal(t, d.Now.Format("2006-01-02 15:04:05"), dm.String())
 }
 
 func TestCopy(t *testing.T) {
@@ -484,4 +606,6 @@ func TestCopy(t *testing.T) {
 	testMethod(t)
 	testMethod2(t)
 	testAlias(t)
+	testMapArray(t)
+	testDefaultMethod(t)
 }
