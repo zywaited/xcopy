@@ -60,3 +60,48 @@ func (s *source) GetFuncName() string {
 
 var anotherSource = map[string]interface{}{"pid": 1, "alias_name": "med"}
 ```
+## 基础用法
+### 不同的结构体进行对应属性的拷贝
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/zywaited/xcopy"
+)
+
+type A struct {
+	Name   string
+	Score  *int
+	Desc   string
+	Height int64
+}
+
+type B struct {
+	Name   *string
+	Score  int
+	Desc   string
+	Height int32
+}
+
+func main() {
+	var a int = 8
+	source := A{
+		Name:   "test",
+		Score:  &a,
+		Desc:   "test copy",
+		Height: 168,
+	}
+	var dest = new(B)
+	// 属性名称相同的时候会进行拷贝,支持指针类型和递归赋值
+	xcopy.Copy(dest, source)
+	fmt.Printf("dest:%#v\n", dest)
+	fmt.Printf("dest.Name:%v\n", *dest.Name)
+	// output:
+	// dest:&main.B{Name:(*string)(0xc000096430), Score:8, Desc:"test copy", Height:168}
+	// dest.Name:test
+
+}
+
+```
