@@ -109,7 +109,7 @@ func testStruct(t *testing.T) {
 			}
 		)
 		d := dest{}
-		s := source{Pid: id, Name: "med", RealAge: 18}
+		s := source{Pid: id, Name: "zy", RealAge: 18}
 		require.Nil(t, c.Copy(&d, s))
 		require.NotNil(t, d.Id)
 		require.Equal(t, int64(id), *d.Id)
@@ -133,7 +133,7 @@ func testMap(t *testing.T) {
 		st := int32(1)
 		var source = map[string]interface{}{
 			"ID":       st,
-			"name":     "med",
+			"name":     "zy",
 			"Type":     &st,
 			"real_age": 18,
 			"mt": struct {
@@ -190,7 +190,7 @@ func testRecursion(t *testing.T) {
 		}
 		id := 1
 		sid := &id
-		name := "med"
+		name := "zy"
 		s := source{
 			Id: int64(id),
 			DestOne: dest{
@@ -264,7 +264,7 @@ func testMultiField(t *testing.T) {
 			Private: 1,
 			Ignore:  1,
 			Ids:     id{Id: 1},
-			Names:   []*name{{Name: "med"}},
+			Names:   []*name{{Name: "zy"}},
 			Ages:    map[string]age{"f": {Age: 5}},
 			T:       tt{T: []int{1}},
 		}

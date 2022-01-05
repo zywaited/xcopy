@@ -336,6 +336,9 @@ func (c *xCopy) Copy(dest, source interface{}) error {
 	}
 
 	dv = dv.Elem()
+	if !dv.IsValid() {
+		return errors.New("被赋值的单体必须有效")
+	}
 	sv := reflect.Indirect(reflect.ValueOf(source))
 	kc := c.kindCopiers[dv.Type().Kind()]
 	if kc == nil {

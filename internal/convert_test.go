@@ -20,11 +20,11 @@ func TestToMap(t *testing.T) {
 
 	m1 := &m{
 		Id:   1,
-		name: "med",
+		name: "zy",
 		RA:   18,
 		Am: &m{
 			Id:   2,
-			name: "med-d2d",
+			name: "zy",
 			RA:   19,
 			M: map[string]int{
 				"Test_Id": 1,

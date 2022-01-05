@@ -23,8 +23,6 @@ func (dc *defaultCopier) check(_, _ reflect.Value) error {
 }
 
 func (dc *defaultCopier) copy(c *xCopy, dv, sv reflect.Value) error {
-	dv = reflect.Indirect(dv)
-	sv = reflect.Indirect(sv)
 	// 重置数据
 	data := c.cp.Get().(*convert.Info)
 	defer c.cp.Put(data)

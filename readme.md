@@ -58,5 +58,5 @@ func (s *source) GetFuncName() string {
 }
 
 
-var anotherSource = map[string]interface{}{"pid": 1, "alias_name": "med"}
+var anotherSource = map[string]interface{}{"pid": 1, "alias_name": "zy"}
 ```
