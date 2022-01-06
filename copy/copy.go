@@ -1,6 +1,7 @@
 package copy
 
 import (
+	"fmt"
 	"reflect"
 	"sync"
 	"unsafe"
@@ -325,24 +326,33 @@ func (c *xCopy) CopyF(dest, source interface{}) (err error) {
 }
 
 // Copy CopyF
-func (c *xCopy) Copy(dest, source interface{}) error {
+func (c *xCopy) Copy(dest, source interface{}) (err error) {
 	if source == nil {
 		return errors.New("赋值体不存在")
 	}
 	// 校验类型
 	dv := reflect.ValueOf(dest)
-	if dv.Type().Kind() != reflect.Ptr {
+	if !dv.IsValid() {
+		return errors.New("被赋值的单体必须有效")
+	}
+	if dv.Kind() != reflect.Ptr {
 		return errors.New("被赋值的单体必须是指针类型")
 	}
 
 	dv = dv.Elem()
 	if !dv.IsValid() {
-		return errors.New("被赋值的单体必须有效")
+		return errors.New("被赋值的单体无法初始化")
 	}
+	defer func() {
+		if pe := recover(); pe != nil {
+			err = fmt.Errorf("赋值失败: [%#v]", pe)
+		}
+	}()
 	sv := reflect.Indirect(reflect.ValueOf(source))
-	kc := c.kindCopiers[dv.Type().Kind()]
+	kc := c.kindCopiers[dv.Kind()]
 	if kc == nil {
 		kc = c.kindCopiers[reflect.Invalid]
 	}
-	return kc.copy(c, dv, sv)
+	err = kc.copy(c, dv, sv)
+	return
 }

@@ -26,7 +26,7 @@ func (ac *arrayCopier) check(dv, sv reflect.Value) error {
 		return errors.New("被赋值的不是数组")
 	}
 
-	sk := reflect.Indirect(sv).Type().Kind()
+	sk := reflect.Indirect(sv).Kind()
 	if sk != reflect.Array && sk != reflect.Slice {
 		return errors.New("赋值体的不是数组")
 	}

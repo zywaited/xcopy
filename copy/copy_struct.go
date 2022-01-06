@@ -112,7 +112,7 @@ func (sc *structCopier) setSf(c *xCopy, data *convert.Info) (err error) {
 	// 强制转换可能会出现异常
 	defer func() {
 		if pe := recover(); pe != nil {
-			err = fmt.Errorf("赋值失败: [%#v]", pe)
+			err = fmt.Errorf("赋值失败: [%s: %#v]", data.GetSf(), pe)
 		}
 	}()
 

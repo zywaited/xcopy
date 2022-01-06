@@ -34,7 +34,7 @@ func (mc *mapCopier) check(dv, sv reflect.Value) error {
 		return errors.New("被赋值的不是哈希")
 	}
 
-	sk := reflect.Indirect(sv).Type().Kind()
+	sk := reflect.Indirect(sv).Kind()
 	if sk != reflect.Map && sk != reflect.Struct {
 		return errors.New("赋值体的不是结构体或者哈希")
 	}
@@ -123,7 +123,7 @@ func (mc *mapCopier) set(c *xCopy, data *convert.Info) (err error) {
 	// 强制转换可能会出现异常
 	defer func() {
 		if pe := recover(); pe != nil {
-			err = fmt.Errorf("赋值失败: [%#v]", pe)
+			err = fmt.Errorf("赋值失败: [%s: %#v]", data.GetDf(), pe)
 		}
 	}()
 	c.value(data)
