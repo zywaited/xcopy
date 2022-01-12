@@ -12,6 +12,7 @@ func TestCodecov(t *testing.T) {
 	testTagField(t)
 	testStructField(t)
 	testMapField(t)
+	testSpecialField(t)
 	testFieldFunction(t)
 	testRecursion(t)
 	testPtr(t)

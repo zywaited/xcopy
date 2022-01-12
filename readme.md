@@ -437,6 +437,19 @@ func main() {
     xcopy.Copy(&dest, source)
     // dest.UcName == source.GetUcName()
 ```
+#### 特殊字段查询
+* 为了支持一些特殊大写字段：["API", "ASCII", "CPU", "CSS", "DNS", "EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID", "IP", "JSON", "LHS", "QPS", "RAM", "RHS", "RPC", "SLA", "SMTP", "SSH", "TLS", "TTL", "UID", "UI", "UUID", "URI", "URL", "UTF8", "VM", "XML", "XSRF", "XSS"]
+```go
+    dest := struct {
+        Id int
+    }{}
+    source := struct {
+        ID uint
+    }{ID: 1}
+    xcopy.Copy(&dest, source)
+    // uint(dest.Id) == source.ID
+```
+
 ### 函数使用易错点
 ```go
     // 特殊注意函数的作用类型
