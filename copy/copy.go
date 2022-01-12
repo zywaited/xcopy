@@ -349,8 +349,9 @@ func (c *xCopy) Copy(dest, source interface{}) (err error) {
 		}
 	}()
 	sv := reflect.Indirect(reflect.ValueOf(source))
-	kc := c.kindCopiers[dv.Kind()]
-	if kc == nil {
+	dt := dv.Type()
+	kc := c.kindCopiers[dt.Kind()]
+	if kc == nil || c.xcm.SC(dt.PkgPath()+"."+dt.Name()) {
 		kc = c.kindCopiers[reflect.Invalid]
 	}
 	err = kc.copy(c, dv, sv)
