@@ -136,6 +136,9 @@ func (c *xCopy) SetJSONTag(jsonTag bool) *xCopy {
 // 抽离函数，真正的赋值操作
 func (c *xCopy) value(data *convert.Info) bool {
 	dt := data.GetDv().Type()
+	if !data.GetSv().IsValid() {
+		return false
+	}
 	st := data.GetSv().Type()
 	// nil返回
 	if (st.Kind() == reflect.Ptr || st.Kind() == reflect.Interface) && data.GetSv().IsNil() {

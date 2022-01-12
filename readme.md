@@ -27,6 +27,19 @@
 * time.Time 整型和字符串自动转换，兜底可实现Time或者ToTime方法
 
 ## 实例
+### 说明
+#### 参数说明
+* convert 数据强制转换，默认为true
+* next 出错是否继续下一个字段赋值，默认为true
+* recursion 是否递归赋值，默认为true
+* jsonTag 是否解析json标签，业务大部分都配置有该tag，默认为true
+#### API
+* Copy(dest, source interface) error 赋值入口函数
+* SetJSONTag(jsonTag bool) copy.Copier 对应参数jsonTag
+* SetRecursion(recursion bool) copy.Copier 对应参数recursion
+* SetNext(next bool) copy.Copier 对应参数next
+* SetConvert(convert bool) copy.Copier 对应参数convert
+
 ### 快速入门
 * 字段同名，类型一致
 ```go
@@ -444,4 +457,134 @@ func main() {
     xcopy.Copy(&dest, source)
     // dest.UcName == source.GetUcName()
     // 虽然说UcName的优先级高于GetUcName, 但是source用的实际数据，不是地址，所以不能访问UcName函数，所以只能取GetUcName
+```
+
+### 进阶使用
+#### 多级指针
+* 特别注意指针的使用【目前没有根据层级计算赋值】
+##### 指针层级完全一致[直接赋值]
+* 把source的值赋值给dest
+```go
+    type ptr struct {
+    }
+    var dest **ptr
+    var sourcePtr *ptr
+    source := &sourcePtr // **ptr
+    xcopy.Copy(&dest, &source) // 这里都是 ***ptr
+    // dest != nil, source不为空
+```
+##### 指针层级不一致
+###### source最后一级为空
+```go
+    type ptr struct {
+    }
+    var dest **ptr
+    var sourcePtr *ptr
+    source := &sourcePtr // **ptr
+    xcopy.Copy(&dest, source) // 这里不对source取地址，层级就不一致
+    // dest == nil, source最后一级为空
+```
+###### source最后一级不为空【会重新申请内存赋值】
+```go
+    type ptr struct {
+    }
+    var dest **ptr
+    sourcePtr := ptr{}
+    source := &sourcePtr // **ptr
+    xcopy.Copy(&dest, source) // 这里不对source取地址，层级就不一致
+    // dest != nil && 最后一级被赋值 && 最后一级的地址与sourcePtr不一样，是新的内存
+```
+#### 递归
+```go
+    // defined
+    type destSecond struct {
+        Name string
+        Age  int
+    }
+    type destFirst struct {
+        User destSecond
+    }
+    dest := destFirst{}
+    source := struct {
+        User struct {
+            Name string
+            Age  int
+        }
+    }{User: struct {
+        Name string
+        Age  int
+    }{Name: "copy", Age: 22}}
+    xcopy.Copy(&dest, source) // nil
+    // dest.User.Name == source.User.Name
+    // dest.User.Age == source.User.Age
+```
+
+### 高级特性
+#### 指定多级字段查询赋值
+* 字段查找可以按照类型层级递归取值
+```go
+    dest := struct {
+        Name string `copy:"db.users.0.pick.name"`
+    }{}
+    source := struct {
+        Db struct {
+            Users []map[string]string
+        }
+    }{Db: struct{ Users []map[string]string }{Users: []map[string]string{{"name": "copy multi name"}}}}
+    xcopy.Copy(&dest, source)
+    // dest.Name == source.Db.Users[0]["name"]
+```
+
+### 自定义转换
+```go
+package main
+
+import (
+	"reflect"
+	"strconv"
+
+	"github.com/stretchr/testify/require"
+	"github.com/zywaited/xcopy"
+	copy2 "github.com/zywaited/xcopy/copy"
+	"github.com/zywaited/xcopy/copy/convert"
+	"github.com/zywaited/xcopy/copy/option"
+)
+
+type floatConvert struct {
+}
+
+func (fc *floatConvert) Convert(data *convert.Info) reflect.Value {
+	sv := data.GetSv()
+	if !sv.IsValid() {
+		return sv
+	}
+	if sv.Type().Kind() != reflect.String {
+		return sv
+	}
+	fv, err := strconv.ParseFloat(sv.String(), 64)
+	if err != nil {
+		return sv
+	}
+	return reflect.ValueOf(fv)
+}
+
+func main() {
+	// note: 全局生效
+	xcm := convert.AcDefaultXConverter().(convert.XConvertersSetter)
+	xcm.Register("float64", &floatConvert{})
+	dest := float64(0)
+	source := "1"
+    // 全局使用
+	xcopy.Copy(&dest, source) // nil
+	// strconv.FormatFloat(dest, 'f', 0, 64) == source
+
+	// 当前生效
+	cxcm := convert.AcDefaultXConverter().(convert.XConvertersCloner).Clone()
+	cxcm.(convert.XConvertersSetter).Register("float64", &floatConvert{})
+	cp := copy2.NewCopy(option.WithXCM(cxcm))
+	dest = float64(0)
+    // 这里要使用cp的Copy方法
+	cp.Copy(&dest, source) // nil
+	// strconv.FormatFloat(dest, 'f', 0, 64) == source
+}
 ```
