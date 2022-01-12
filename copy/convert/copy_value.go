@@ -22,6 +22,14 @@ func (ms ActualValueMs) AC(kind reflect.Kind) ActualValue {
 	return ms[reflect.Invalid]
 }
 
+func (ms ActualValueMs) Clone() ActualValueMs {
+	c := ActualValueMs{}
+	for kind, actualValuer := range ms {
+		c[kind] = actualValuer
+	}
+	return c
+}
+
 var (
 	acv ActualValueMs = map[reflect.Kind]ActualValue{}
 

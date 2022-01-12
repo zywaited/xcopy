@@ -16,6 +16,15 @@ type (
 		AC(string) XConverter
 	}
 
+	XConvertersCloner interface {
+		Clone() XConverters
+	}
+
+	XConvertersSetter interface {
+		Register(name string, xc XConverter)
+		SkipCopier(name string)
+	}
+
 	converterMS struct {
 		m map[string]XConverter
 		f map[string]bool
@@ -48,6 +57,19 @@ func (xcm *converterMS) Register(name string, xc XConverter) {
 
 func (xcm *converterMS) SkipCopier(name string) {
 	xcm.f[name] = true
+}
+
+func (xcm *converterMS) Clone() XConverters {
+	c := newConverterMS()
+	for name, xConverter := range xcm.m {
+		c.Register(name, xConverter)
+	}
+	for name, skip := range xcm.f {
+		if skip {
+			c.SkipCopier(name)
+		}
+	}
+	return c
 }
 
 func AcDefaultXConverter() XConverters {
