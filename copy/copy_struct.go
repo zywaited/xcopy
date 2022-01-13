@@ -68,6 +68,10 @@ func (sc *structCopier) copy(c *xCopy, dv, sv reflect.Value) (err error) {
 					err = errors.Errorf("赋值字段[%s]赋值失败: 源字段不存在或为nil", fst.Name)
 					return
 				}
+				// fix: 当前字段不存在但下一个字段刚好存在
+				if !aok {
+					continue
+				}
 			}
 		}
 		// 如果是内嵌字段并且没有指定字段

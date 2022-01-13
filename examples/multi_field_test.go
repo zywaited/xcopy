@@ -9,7 +9,7 @@ import (
 
 func testMultiField(t *testing.T) {
 	dest := struct {
-		Name string `copy:"db.users.0.pick.name"`
+		Name string `copy:"db.users.0.name"`
 	}{}
 	source := struct {
 		Db struct {

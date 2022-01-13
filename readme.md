@@ -98,6 +98,7 @@
 * jsonTag 是否解析json标签，业务大部分都配置有该tag，默认为true
 #### API
 * Copy(dest, source interface) error 赋值入口函数
+##### 参数
 * SetJSONTag(jsonTag bool) copy.Copier 对应参数jsonTag
 * SetRecursion(recursion bool) copy.Copier 对应参数recursion
 * SetNext(next bool) copy.Copier 对应参数next
@@ -384,6 +385,8 @@ func main() {
 
 ### 寻找source赋值字段
 * 优先级依次降低
+* 如果copy字段指定origin参数，则只能使用原始字段名称，不能做转换
+    * 比如 copy:"uc_name,origin"， 结构体名称只能时Uc_name, 其他类型只能时uc_name，函数名称不受限制
 #### copy tag
 ```go
     dest := struct {
@@ -408,7 +411,7 @@ func main() {
     // dest.Name == source.Alise
 ```
 #### struct字段
-##### 字段首字母大写
+##### 字段首字母大写【该规则不受origin限制，必须可导出】
 ```go
     dest := struct {
         Name string
@@ -502,6 +505,9 @@ func main() {
 ```
 #### 特殊字段查询
 * 为了支持一些特殊大写字段：["API", "ASCII", "CPU", "CSS", "DNS", "EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID", "IP", "JSON", "LHS", "QPS", "RAM", "RHS", "RPC", "SLA", "SMTP", "SSH", "TLS", "TTL", "UID", "UI", "UUID", "URI", "URL", "UTF8", "VM", "XML", "XSRF", "XSS"]
+    * 如果字段不存在
+        * 字段函数[可导出驼峰函数]
+        * Get{字段驼峰}函数
 ```go
     dest := struct {
         Id int
@@ -571,6 +577,7 @@ func main() {
     // dest != nil && 最后一级被赋值 && 最后一级的地址与sourcePtr不一样，是新的内存
 ```
 #### 递归
+* 复杂类型嵌套时可根据类型递归复制
 ```go
     // defined
     type destSecond struct {
@@ -595,12 +602,33 @@ func main() {
     // dest.User.Age == source.User.Age
 ```
 
+#### tag指定函数调用
+* 默认会转换成可导出的驼峰函数名称，如果指定origin则不转换，但实际对于reflect必须时可导出的，所以origin意义不大
+```go
+    // defined
+    type user struct {
+        name string
+    }
+    
+    func (user *user) Name() string {
+        return user.name
+    }
+    // used
+    dest := struct {
+        Name string `copy:"func:name"`
+    }{}
+    source := &user{name: "copy"}
+    xcopy.Copy(&dest, source) // 会调用user.Name函数
+    // dest.Name == (&user{}).Name()
+```
+
 ### 高级特性
 #### 指定多级字段查询赋值
-* 字段查找可以按照类型层级递归取值
+* 字段查找可以按照类型层级递归取值，通过英文 . 进行多类型索引字段的连接
+* 如果类型与索引不符合则返回失败【如果next为false的情况】, 比如类型时数组，索引不是整型或者时小于0或者大于长度
 ```go
     dest := struct {
-        Name string `copy:"db.users.0.pick.name"`
+        Name string `copy:"db.users.0.name"`
     }{}
     source := struct {
         Db struct {
@@ -610,9 +638,46 @@ func main() {
     xcopy.Copy(&dest, source)
     // dest.Name == source.Db.Users[0]["name"]
 ```
+#### 指定多级函数查询赋值
+* 默认会转换成可导出的驼峰函数名称，如果指定origin则不转换，但实际对于reflect必须时可导出的，所以origin意义不大
+```go
+    // defined
+    type user struct {
+        name string
+    }
+    
+    func (user *user) Name() string {
+        return user.name
+    }
+    
+    type factory struct {
+    }
+    
+    func (factory *factory) User() *user {
+        return &user{name: "copy multi method"}
+    }
+	
+	// used
+    dest := struct {
+        Name string `copy:"func:user.name"`
+    }{}
+    source := &factory{}
+    xcopy.Copy(&dest, source) // factory.User.Name()
+    // dest.Name == source.User().Name()
+```
 
 ### 自定义转换
+* convert/Info
+    * GetSv() 数据源
+* convert/copy_value_{kind} 文件代表具体类型的查找函数
+    * ActualValuer 获取被赋值类型对应的处理函数
+    * ActualValueMs ActualValuer的具体实现，开发者可通过AcDefaultActualValuer获取，如果直接修改则影响全局，可通过Clone复制，NewCopy时通过option注入
+* convert/copy_convert_{kind} 文件代表具体类型的转换函数
+    * XConverters 获取赋值类型对应的处理函数
+    * converterMS XConverters的具体实现，开发者可通过AcDefaultXConverter获取，如果直接修改则影响全局，可通过Clone复制，NewCopy时通过option注入
 ```go
+// 以下实现了string => float64的转换逻辑
+// global && option
 package main
 
 import (
@@ -626,41 +691,42 @@ import (
 	"github.com/zywaited/xcopy/copy/option"
 )
 
+// XConverters
 type floatConvert struct {
 }
 
 func (fc *floatConvert) Convert(data *convert.Info) reflect.Value {
-	sv := data.GetSv()
-	if !sv.IsValid() {
-		return sv
-	}
-	if sv.Type().Kind() != reflect.String {
-		return sv
-	}
-	fv, err := strconv.ParseFloat(sv.String(), 64)
-	if err != nil {
-		return sv
-	}
-	return reflect.ValueOf(fv)
+    sv := data.GetSv()
+    if !sv.IsValid() {
+        return sv
+    }
+    if sv.Type().Kind() != reflect.String {
+        return sv
+    }
+    fv, err := strconv.ParseFloat(sv.String(), 64)
+    if err != nil {
+        return sv
+    }
+    return reflect.ValueOf(fv)
 }
 
 func main() {
-	// note: 全局生效
-	xcm := convert.AcDefaultXConverter().(convert.XConvertersSetter)
-	xcm.Register("float64", &floatConvert{})
-	dest := float64(0)
-	source := "1"
+    // note: 全局生效
+    xcm := convert.AcDefaultXConverter().(convert.XConvertersSetter)
+    xcm.Register("float64", &floatConvert{})
+    dest := float64(0)
+    source := "1"
     // 全局使用
-	xcopy.Copy(&dest, source) // nil
-	// strconv.FormatFloat(dest, 'f', 0, 64) == source
-
-	// 当前生效
-	cxcm := convert.AcDefaultXConverter().(convert.XConvertersCloner).Clone()
-	cxcm.(convert.XConvertersSetter).Register("float64", &floatConvert{})
-	cp := copy2.NewCopy(option.WithXCM(cxcm))
-	dest = float64(0)
+    xcopy.Copy(&dest, source) // nil
+    // strconv.FormatFloat(dest, 'f', 0, 64) == source
+    
+    // 当前生效
+    cxcm := convert.AcDefaultXConverter().(convert.XConvertersCloner).Clone()
+    cxcm.(convert.XConvertersSetter).Register("float64", &floatConvert{})
+    cp := copy2.NewCopy(option.WithXCM(cxcm))
+    dest = float64(0)
     // 这里要使用cp的Copy方法
-	cp.Copy(&dest, source) // nil
-	// strconv.FormatFloat(dest, 'f', 0, 64) == source
+    cp.Copy(&dest, source) // nil
+    // strconv.FormatFloat(dest, 'f', 0, 64) == source
 }
 ```

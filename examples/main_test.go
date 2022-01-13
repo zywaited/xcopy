@@ -18,4 +18,5 @@ func TestCodecov(t *testing.T) {
 	testPtr(t)
 	testMultiField(t)
 	testCustom(t)
+	testFunction(t)
 }

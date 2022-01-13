@@ -36,6 +36,11 @@ func arraySearchValue(next ActualValue) ActualValue {
 		if err != nil {
 			return
 		}
+		// fix: 索引为负数 && 索引大于长度
+		if d < 0 || data.GetSv().Len() <= d {
+			err = invalidValue
+			return
+		}
 		v := data.GetSv().Index(d)
 		if !v.IsValid() {
 			err = invalidValue
